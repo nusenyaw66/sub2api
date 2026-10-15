@@ -241,6 +241,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/models',
+    name: 'AvailableModels',
+    component: () => import('@/views/user/AvailableModelsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Available Models',
+      titleKey: 'availableModels.title',
+      descriptionKey: 'availableModels.description'
+    }
+  },
+  {
     path: '/redeem',
     name: 'Redeem',
     component: () => import('@/views/user/RedeemView.vue'),
@@ -779,6 +791,26 @@ function isBackendModePublicRouteAllowed(path: string, hasPendingAuthSession: bo
   return false
 }
 
+const retiredCustomerRoutePrefixes = [
+  '/profile',
+  '/batch-image',
+  '/docs/batch-image',
+  '/available-channels',
+  '/monitor',
+  '/subscriptions',
+  '/purchase',
+  '/orders',
+  '/redeem',
+  '/affiliate',
+  '/payment',
+  '/custom',
+  '/model-plaza'
+]
+
+function isRetiredCustomerRoute(path: string): boolean {
+  return retiredCustomerRoutePrefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))
+}
+
 router.beforeEach(async (to, _from, next) => {
   // 开始导航加载状态
   navigationLoading.startNavigation()
@@ -828,6 +860,10 @@ router.beforeEach(async (to, _from, next) => {
       }
       // Admin users go to admin dashboard, regular users go to user dashboard
       next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+      return
+    }
+    if (authStore.isAuthenticated && !authStore.isAdmin && isRetiredCustomerRoute(to.path)) {
+      next('/dashboard')
       return
     }
     // Model Plaza:公开路由但受「启用开关 + 可选强制登录」双重控制(后端同口径 fail-closed)
@@ -886,6 +922,11 @@ router.beforeEach(async (to, _from, next) => {
   // Check admin requirement
   if (requiresAdmin && !authStore.isAdmin) {
     // User is authenticated but not admin, redirect to user dashboard
+    next('/dashboard')
+    return
+  }
+
+  if (!authStore.isAdmin && isRetiredCustomerRoute(to.path)) {
     next('/dashboard')
     return
   }

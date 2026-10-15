@@ -179,6 +179,7 @@ export default {
     groups: 'Groups',
     channels: 'Channels',
     availableChannels: 'Available Channels',
+    availableModels: 'Available Models',
     modelPlaza: 'Model Plaza',
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
@@ -454,6 +455,27 @@ export default {
     verifyFailed: 'Verification failed, please try again',
     notEnabled: 'This operation requires two-factor authentication. Please enable TOTP in your profile first.',
     adminApiKeyForbidden: 'Admin API keys cannot perform this operation. Use a two-factor verified admin session.'
+  },
+
+  availableModels: {
+    title: 'Available Models',
+    description: 'Models you can call, with the price for your account.',
+    searchPlaceholder: 'Search model name',
+    copy: 'Copy model name',
+    copied: 'Copied',
+    empty: 'No models are available yet.',
+    noResults: 'No matching models.',
+    loadFailed: 'Failed to load available models.',
+    payAsYouGo: 'Pay as you go',
+    perRequest: 'Per request',
+    perImage: 'Per image',
+    perVideo: 'Per video',
+    inputPrice: 'Input price {price} / 1M tokens',
+    outputPrice: 'Output price {price} / 1M tokens',
+    cacheWritePrice: 'Cache write price {price} / 1M tokens',
+    cacheReadPrice: 'Cache read price {price} / 1M tokens',
+    requestPrice: '{price} / request',
+    group: 'Group {name}'
   },
 
   // Dashboard

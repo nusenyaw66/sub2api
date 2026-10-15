@@ -17,12 +17,7 @@ export const useAdminComplianceStore = defineStore('adminCompliance', () => {
   const required = computed(() => status.value?.required === true)
   const shouldShow = computed(() => required.value || forceVisible.value)
   const currentLocale = computed(() => getLocale())
-  const expectedPhrase = computed(() => {
-    if (currentLocale.value === 'zh') {
-      return status.value?.ack_phrase_zh || FALLBACK_ZH_PHRASE
-    }
-    return status.value?.ack_phrase_en || FALLBACK_EN_PHRASE
-  })
+  const expectedPhrase = computed(() => status.value?.ack_phrase_en || FALLBACK_EN_PHRASE)
 
   async function fetchStatus(): Promise<AdminComplianceStatus> {
     const version = stateVersion

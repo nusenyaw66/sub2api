@@ -129,7 +129,7 @@ describe('feature route guard', () => {
       return settings
     })
 
-    const { navigation, next } = runGuard({ requiresPayment: true }, '/purchase')
+    const { navigation, next } = runGuard({ requiresPayment: true }, '/billing-check')
 
     await vi.waitFor(() => expect(appStore.fetchPublicSettings).toHaveBeenCalledTimes(1))
     expect(next).not.toHaveBeenCalled()
@@ -141,9 +141,9 @@ describe('feature route guard', () => {
   })
 
   it.each([
-    ['payment', { requiresPayment: true }, '/purchase'],
+    ['payment', { requiresPayment: true }, '/billing-check'],
     ['risk control', { requiresRiskControl: true }, '/admin/risk-control'],
-    ['subscription', { requiresSubscription: true }, '/subscriptions'],
+    ['subscription', { requiresSubscription: true }, '/subscription-check'],
   ])('does not treat a failed %s settings load as explicitly disabled', async (_name, meta, path) => {
     authStore.isAdmin = meta.requiresRiskControl === true
     appStore.fetchPublicSettings.mockResolvedValue(null)
@@ -190,7 +190,8 @@ describe('subscription route guard (opt-out flag)', () => {
   it.each([
     ['missing key', {}],
     ['explicit true', { subscription_enabled: true }],
-  ])('lets /subscriptions through when the flag is %s', async (_name, settings) => {
+  ])('lets an admin open subscriptions when the flag is %s', async (_name, settings) => {
+    authStore.isAdmin = true
     appStore.cachedPublicSettings = settings
 
     const { navigation, next } = runGuard({ requiresSubscription: true }, '/subscriptions')
@@ -198,6 +199,30 @@ describe('subscription route guard (opt-out flag)', () => {
 
     expect(next).toHaveBeenCalledOnce()
     expect(next).toHaveBeenCalledWith()
+  })
+
+  it.each(['/profile', '/redeem', '/purchase', '/subscriptions'])(
+    'sends a regular user from %s back to the dashboard',
+    async (path) => {
+      authStore.isAdmin = false
+
+      const { navigation, next } = runGuard({}, path)
+      await navigation
+
+      expect(next).toHaveBeenCalledOnce()
+      expect(next).toHaveBeenCalledWith('/dashboard')
+    }
+  )
+
+  it('sends a signed-in customer away from the public model plaza', async () => {
+    authStore.isAdmin = false
+    authStore.isAuthenticated = true
+
+    const { navigation, next } = runGuard({ requiresAuth: false }, '/model-plaza')
+    await navigation
+
+    expect(next).toHaveBeenCalledOnce()
+    expect(next).toHaveBeenCalledWith('/dashboard')
   })
 
   it('sends admins to the admin dashboard when subscriptions are disabled', async () => {

@@ -2,6 +2,8 @@ package handler
 
 import (
 	"log/slog"
+	"sort"
+	"strconv"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -159,6 +161,170 @@ func (h *ModelPlazaHandler) Get(c *gin.Context) {
 		Description: rt.Description,
 		Groups:      out,
 	})
+}
+
+// availableModelCard 是登录用户可调用模型的价目卡片。价格已乘上该分组的生效倍率。
+type availableModelCard struct {
+	Name            string   `json:"name"`
+	GroupName       string   `json:"group_name,omitempty"`
+	BillingMode     string   `json:"billing_mode"`
+	InputPrice      *float64 `json:"input_price"`
+	OutputPrice     *float64 `json:"output_price"`
+	CacheWritePrice *float64 `json:"cache_write_price"`
+	CacheReadPrice  *float64 `json:"cache_read_price"`
+	PerRequestPrice *float64 `json:"per_request_price"`
+}
+
+type availableModelsResponse struct {
+	Models []availableModelCard `json:"models"`
+}
+
+// ListAvailableModels 返回当前用户可调用的模型价目。
+// GET /api/v1/user/available-models
+//
+// 与公开模型广场不同：这里不看广场开关，只按登录用户的分组可见性裁剪。
+func (h *ModelPlazaHandler) ListAvailableModels(c *gin.Context) {
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "Authentication required")
+		return
+	}
+	if h.plazaService == nil || h.apiKeyService == nil {
+		response.InternalError(c, "Available models are not configured")
+		return
+	}
+
+	groups, err := h.plazaService.ListGroups(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	allowedGroups, restrictPublicGroups, err := h.apiKeyService.GetUserGroupVisibility(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	userRates, err := h.apiKeyService.GetUserGroupRates(c.Request.Context(), subject.UserID)
+	if err != nil {
+		slog.Warn("available_models_user_rates_failed", "error", err, "user_id", subject.UserID)
+		userRates = nil
+	}
+
+	visible := filterPlazaVisibleGroups(groups, allowedGroups, restrictPublicGroups)
+	out := toLocalizedModelPlazaGroups(visible, userRates, "en")
+	response.Success(c, availableModelsResponse{Models: flattenAvailableModelCards(out)})
+}
+
+func catalogRate(g modelPlazaGroup, billingMode string) float64 {
+	if billingMode == string(service.BillingModeVideo) && g.VideoRateIndependent {
+		if g.VideoRateMultiplier < 0 {
+			return 0
+		}
+		return g.VideoRateMultiplier
+	}
+	if billingMode == string(service.BillingModeImage) && g.ImageRateIndependent {
+		return g.ImageRateMultiplier
+	}
+	if g.UserRateMultiplier != nil {
+		return *g.UserRateMultiplier
+	}
+	return g.RateMultiplier
+}
+
+func scalePrice(value *float64, rate float64) *float64 {
+	if value == nil {
+		return nil
+	}
+	scaled := *value * rate
+	return &scaled
+}
+
+func catalogCard(g modelPlazaGroup, m modelPlazaModel) availableModelCard {
+	mode := string(service.BillingModeToken)
+	if m.Pricing != nil && m.Pricing.BillingMode != "" {
+		mode = m.Pricing.BillingMode
+	}
+	card := availableModelCard{
+		Name:        m.Name,
+		GroupName:   g.Name,
+		BillingMode: mode,
+	}
+	if m.Pricing == nil {
+		return card
+	}
+	rate := catalogRate(g, mode)
+	if mode == string(service.BillingModeToken) {
+		card.InputPrice = scalePrice(m.Pricing.InputPrice, rate)
+		card.OutputPrice = scalePrice(m.Pricing.OutputPrice, rate)
+		card.CacheWritePrice = scalePrice(m.Pricing.CacheWritePrice, rate)
+		card.CacheReadPrice = scalePrice(m.Pricing.CacheReadPrice, rate)
+		return card
+	}
+	card.PerRequestPrice = scalePrice(m.Pricing.PerRequestPrice, rate)
+	return card
+}
+
+func priceSignature(card availableModelCard) string {
+	return card.BillingMode + "|" +
+		formatCatalogPrice(card.InputPrice) + "|" +
+		formatCatalogPrice(card.OutputPrice) + "|" +
+		formatCatalogPrice(card.CacheWritePrice) + "|" +
+		formatCatalogPrice(card.CacheReadPrice) + "|" +
+		formatCatalogPrice(card.PerRequestPrice)
+}
+
+func formatCatalogPrice(value *float64) string {
+	if value == nil {
+		return ""
+	}
+	return strconv.FormatFloat(*value, 'g', 12, 64)
+}
+
+// flattenAvailableModelCards 按模型名合并价目。同一模型在多个分组里价格相同时只留一张卡；
+// 价格不同时每个分组各留一张，并带上分组名。
+func flattenAvailableModelCards(groups []modelPlazaGroup) []availableModelCard {
+	type keyedCard struct {
+		key  string
+		card availableModelCard
+	}
+	byName := make(map[string][]keyedCard)
+	names := make([]string, 0)
+	for _, group := range groups {
+		for _, model := range group.Models {
+			card := catalogCard(group, model)
+			key := priceSignature(card)
+			existing := byName[model.Name]
+			if existing == nil {
+				names = append(names, model.Name)
+			}
+			duplicate := false
+			for _, item := range existing {
+				if item.key == key {
+					duplicate = true
+					break
+				}
+			}
+			if duplicate {
+				continue
+			}
+			byName[model.Name] = append(existing, keyedCard{key: key, card: card})
+		}
+	}
+	sort.Strings(names)
+	out := make([]availableModelCard, 0)
+	for _, name := range names {
+		items := byName[name]
+		sort.Slice(items, func(i, j int) bool {
+			return items[i].card.GroupName < items[j].card.GroupName
+		})
+		if len(items) == 1 {
+			items[0].card.GroupName = ""
+		}
+		for _, item := range items {
+			out = append(out, item.card)
+		}
+	}
+	return out
 }
 
 // filterPlazaVisibleGroups 按登录态裁剪分组可见性。

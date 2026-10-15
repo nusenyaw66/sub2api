@@ -305,3 +305,52 @@ func TestModelPlazaHandler_VaryKeepsCORSOrigin(t *testing.T) {
 		require.Equal(t, []string{"Origin", "Accept-Language"}, w.Header().Values("Vary"))
 	}
 }
+
+func TestFlattenAvailableModelCards_SplitsDifferentPricesAndDedupesSamePrice(t *testing.T) {
+	groups := []modelPlazaGroup{
+		{
+			Name:           "alpha",
+			RateMultiplier: 1,
+			Models: []modelPlazaModel{{
+				Name:    "claude",
+				Pricing: &userSupportedModelPricing{BillingMode: "token", InputPrice: testPtr(1e-6)},
+			}},
+		},
+		{
+			Name:           "beta",
+			RateMultiplier: 2,
+			Models: []modelPlazaModel{{
+				Name:    "claude",
+				Pricing: &userSupportedModelPricing{BillingMode: "token", InputPrice: testPtr(1e-6)},
+			}},
+		},
+		{
+			Name:           "gamma",
+			RateMultiplier: 1,
+			Models: []modelPlazaModel{{
+				Name:    "same",
+				Pricing: &userSupportedModelPricing{BillingMode: "token", InputPrice: testPtr(2e-6)},
+			}},
+		},
+		{
+			Name:           "delta",
+			RateMultiplier: 1,
+			Models: []modelPlazaModel{{
+				Name:    "same",
+				Pricing: &userSupportedModelPricing{BillingMode: "token", InputPrice: testPtr(2e-6)},
+			}},
+		},
+	}
+
+	cards := flattenAvailableModelCards(groups)
+	require.Len(t, cards, 3)
+	require.Equal(t, "claude", cards[0].Name)
+	require.Equal(t, "alpha", cards[0].GroupName)
+	require.InDelta(t, 1e-6, *cards[0].InputPrice, 1e-12)
+	require.Equal(t, "claude", cards[1].Name)
+	require.Equal(t, "beta", cards[1].GroupName)
+	require.InDelta(t, 2e-6, *cards[1].InputPrice, 1e-12)
+	require.Equal(t, "same", cards[2].Name)
+	require.Empty(t, cards[2].GroupName)
+	require.InDelta(t, 2e-6, *cards[2].InputPrice, 1e-12)
+}
