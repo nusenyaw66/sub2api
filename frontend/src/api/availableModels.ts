@@ -6,6 +6,7 @@ import { apiClient } from './client'
 
 export interface AvailableModelCard {
   name: string
+  platform: string
   group_name?: string
   billing_mode: string
   input_price: number | null

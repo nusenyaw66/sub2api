@@ -52,9 +52,17 @@
               <Icon name="copy" size="sm" />
             </button>
           </div>
-          <ul class="mt-4 space-y-1 text-sm text-gray-600 dark:text-dark-300">
-            <li v-for="line in priceLines(model)" :key="line">{{ line }}</li>
-          </ul>
+          <div class="mt-4 flex items-start gap-3">
+            <PlatformIcon
+              v-if="model.platform"
+              :platform="model.platform as GroupPlatform"
+              size="md"
+              :class="platformIconClass(model.platform)"
+            />
+            <ul class="min-w-0 space-y-1 text-sm text-gray-600 dark:text-dark-300">
+              <li v-for="line in priceLines(model)" :key="line">{{ line }}</li>
+            </ul>
+          </div>
           <span class="mt-4 inline-flex rounded-full bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
             {{ billingLabel(model.billing_mode) }}
           </span>
@@ -70,10 +78,13 @@ import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'
+import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import { listAvailableModels, type AvailableModelCard } from '@/api/availableModels'
 import { BILLING_MODE_IMAGE, BILLING_MODE_PER_REQUEST, BILLING_MODE_VIDEO } from '@/constants/channel'
 import { formatScaled } from '@/utils/pricing'
+import { platformIconClass } from '@/utils/platformColors'
 import { extractApiErrorMessage } from '@/utils/apiError'
+import type { GroupPlatform } from '@/types'
 
 const { t } = useI18n()
 const models = ref<AvailableModelCard[]>([])

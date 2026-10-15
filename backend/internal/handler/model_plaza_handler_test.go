@@ -312,16 +312,18 @@ func TestFlattenAvailableModelCards_SplitsDifferentPricesAndDedupesSamePrice(t *
 			Name:           "alpha",
 			RateMultiplier: 1,
 			Models: []modelPlazaModel{{
-				Name:    "claude",
-				Pricing: &userSupportedModelPricing{BillingMode: "token", InputPrice: testPtr(1e-6)},
+				Name:     "claude",
+				Platform: "anthropic",
+				Pricing:  &userSupportedModelPricing{BillingMode: "token", InputPrice: testPtr(1e-6)},
 			}},
 		},
 		{
 			Name:           "beta",
 			RateMultiplier: 2,
 			Models: []modelPlazaModel{{
-				Name:    "claude",
-				Pricing: &userSupportedModelPricing{BillingMode: "token", InputPrice: testPtr(1e-6)},
+				Name:     "claude",
+				Platform: "anthropic",
+				Pricing:  &userSupportedModelPricing{BillingMode: "token", InputPrice: testPtr(1e-6)},
 			}},
 		},
 		{
@@ -345,6 +347,7 @@ func TestFlattenAvailableModelCards_SplitsDifferentPricesAndDedupesSamePrice(t *
 	cards := flattenAvailableModelCards(groups)
 	require.Len(t, cards, 3)
 	require.Equal(t, "claude", cards[0].Name)
+	require.Equal(t, "anthropic", cards[0].Platform)
 	require.Equal(t, "alpha", cards[0].GroupName)
 	require.InDelta(t, 1e-6, *cards[0].InputPrice, 1e-12)
 	require.Equal(t, "claude", cards[1].Name)

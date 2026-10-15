@@ -166,6 +166,7 @@ func (h *ModelPlazaHandler) Get(c *gin.Context) {
 // availableModelCard 是登录用户可调用模型的价目卡片。价格已乘上该分组的生效倍率。
 type availableModelCard struct {
 	Name            string   `json:"name"`
+	Platform        string   `json:"platform"`
 	GroupName       string   `json:"group_name,omitempty"`
 	BillingMode     string   `json:"billing_mode"`
 	InputPrice      *float64 `json:"input_price"`
@@ -246,6 +247,7 @@ func catalogCard(g modelPlazaGroup, m modelPlazaModel) availableModelCard {
 	}
 	card := availableModelCard{
 		Name:        m.Name,
+		Platform:    m.Platform,
 		GroupName:   g.Name,
 		BillingMode: mode,
 	}
